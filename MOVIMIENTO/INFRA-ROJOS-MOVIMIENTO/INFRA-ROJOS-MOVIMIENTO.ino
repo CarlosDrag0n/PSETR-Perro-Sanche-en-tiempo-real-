@@ -31,13 +31,24 @@ enum LastInfra {
   RIGHT,
 };
 
+enum movimiento {
+  LINEA_ENCONTRADA,           
+  BUSCANDO_LINEA,
+  PARANDO,
+  FINALIZADO 
+};
+movimiento estadoActual = LINEA_ENCONTRADA; 
+
+ThreadController controlador = ThreadController();
+Thread hilo_infra_rojos = Thread();
+Thread hilo_motor = Thread();
+
 int maxspeed = 255;
 int vals[3];
 int speeds[2];
 
-// Devuelve un puntero al array de lecturas
-void read_infra()
-{
+void callback_infra_rojos() {
+
   int valLeft = analogRead(PIN_ITR20001_LEFT);
   int valMiddle = analogRead(PIN_ITR20001_MIDDLE);
   int valRight = analogRead(PIN_ITR20001_RIGHT);
@@ -52,8 +63,7 @@ void read_infra()
   vals[2] = valRight;
 }
 
-void pid(int* inf_vals)
-{
+void pid(int* inf_vals){
 
   int left = inf_vals[0];
   int middle = inf_vals[1];
@@ -86,8 +96,7 @@ void pid(int* inf_vals)
   Serial.print(" ");
 }
 
-void move(int* speeds)
-{
+void move(int* speeds){
   speed_left = speeds[0];
   speed_right = speeds[1];
 
@@ -96,6 +105,39 @@ void move(int* speeds)
 
   digitalWrite(PIN_Motor_AIN_1, HIGH);
   analogWrite(PIN_Motor_PWMA, speed_right);
+}
+
+void callback_motor() {
+  if (estadoActual == FINALIZADO) {
+    mover(0, 0);
+    return;
+  }
+
+  int velocidadCalculada = 0;
+
+  if (estadoActual == PARANDO) {
+    int error = distancia - distanciaObjetivo; 
+    Serial.print(distancia);
+    Serial.println(" cm");
+
+    // --- PUNTO DE NO RETORNO ---
+    if (error <= 0) {
+      // Hemos llegado a la meta (7cm o menos)
+      estadoActual = FINALIZADO; // Cambiamos al estado de bloqueo
+      mover(0, 0);               // Frenazo final
+      return;                    // Salimos
+    } 
+    
+    // Si aún no hemos llegado, aplicamos el regulador P
+    velocidadCalculada = (error * Kp) + velocidadMinima;
+    mover(velocidadCalculada, velocidadCalculada);
+
+  } else if (estadoActual == LINEA_ENCONTRADA) {
+    pid(vals);
+    move(speeds);
+  } else if (estadoActual == BUSCANDO_LINEA) {
+    mover(100, 100);
+  }
 }
 
 void setup()
@@ -111,16 +153,21 @@ void setup()
 
   // Habilitar la controladora de motores
   digitalWrite(PIN_Motor_STBY, HIGH);
+
+  hilo_infra_rojos.onRun(callback_ultra_sonido);
+  hilo_infra_rojos.setInterval(30); 
+
+  hilo_motor.onRun(callback_motor);
+  hilo_motor.setInterval(60); 
+
+  controlador.add(&hilo_infra_rojos);
+  controlador.add(&hilo_motor);
 }
 
 void loop()
 {
-   // 1. Leer sensores
-  read_infra();
-  
-  // 2. Calcular PID
-  pid(vals);
-
-  //move(speeds);
-
+   controlador.run();
+  if (estadoActual == FINALIZADO){
+    return;
+  }
 }
