@@ -38,8 +38,6 @@ void setup() {
   
   Serial2.print("{ 'test': " + String(millis()) + " }");
   Serial.print("Messase sent! to Arduino");
-     
-  
 }
 
 String sendBuff;
