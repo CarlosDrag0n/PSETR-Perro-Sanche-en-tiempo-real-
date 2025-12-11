@@ -5,16 +5,13 @@
 // 1. CONFIGURACIÓN DE PINES
 // ==========================================
 
-// --- Sensores Infrarrojos ---
 #define PIN_ITR_LEFT   A2
 #define PIN_ITR_MIDDLE A1
 #define PIN_ITR_RIGHT  A0
 
-// --- Sensor Ultrasonido ---
 const int trigPin = 13;
 const int echoPin = 12;
 
-// --- Motores (Driver) ---
 #define PIN_Motor_STBY  3
 #define PIN_Motor_AIN_1 7
 #define PIN_Motor_PWMA  5
@@ -22,172 +19,173 @@ const int echoPin = 12;
 #define PIN_Motor_PWMB  6 
 
 // ==========================================
-// 2. VARIABLES Y AJUSTES
+// 2. AJUSTES PARA VELOCIDAD Y RECUPERACIÓN AGRESIVA
 // ==========================================
 
-// --- PID LÍNEA ---
-float kp_linea = 0.15; 
-float kd_linea = 2.0;
-int error_linea, prev_error_linea, derivate_linea;
-int velocidadBase = 90; // Velocidad crucero
+// --- PID DE ALTA VELOCIDAD ---
+// Kp: 0.4 es agresivo, está bien para curvas rápidas.
+float kp_linea = 0.4; 
+// Kd: Subimos a 3.0 para frenar el tembleque que genera un Kp de 0.4
+float kd_linea = 2.5;  
 
-// Variables lectura IR
+int error_linea, prev_error_linea, derivate_linea;
+
+// Velocidad de crucero
+int velocidadBase = 120; 
+
+// --- BÚSQUEDA / RECUPERACIÓN (TURBO) ---
+// Para recuperar rápido, necesitamos mucha diferencia entre ruedas.
+int velocidadGiroRapida = 200; // Muy rápido para cerrar la curva ya
+int velocidadGiroLenta = -20;  // Pequeño freno activo para clavar la rueda interior y pivotar
+int umbralNegro = 400; 
+
+enum Lado { IZQUIERDA, DERECHA };
+Lado ultimoLadoVisto = DERECHA; 
+
 int valLeft, valMiddle, valRight;
 
-// --- CONTROL DE FRENADO ---
+// --- FRENADO ---
 long duracion;
 int distancia = 999;
-const int distanciaObjetivo = 7;       // AL LLEGAR AQUÍ SE ACABA TODO
-const int distanciaInicioFrenado = 25; // Empieza a frenar un poco antes
-const float kp_freno = 8.0;            // Ganancia (Si choca, súbelo a 10 o 12)
-const int velocidadMinimaFreno = 0;    // Dejamos que el PWM baje hasta 0 si es necesario
+const int distanciaObjetivo = 7;       
+const int distanciaInicioFrenado = 35; 
+const float kp_freno = 10.0;           
+const int velocidadMinimaFreno = 0;    
 
 // --- ESTADOS ---
 enum movimiento {
-  SEGUIR_LINEA,           
+  SEGUIR_LINEA,
+  BUSCANDO_LINEA,
   PARANDO_OBSTACULO,
   FINALIZADO 
 };
 movimiento estadoActual = SEGUIR_LINEA; 
 
-// --- HILOS ---
 ThreadController controlador = ThreadController();
 Thread hilo_infra_rojos = Thread();
 Thread hilo_ultra_sonido = Thread();
 Thread hilo_motor = Thread();
 
 // ==========================================
-// 3. FUNCIONES DE MOVIMIENTO
+// 3. FUNCIONES
 // ==========================================
 
 void mover(int velocidadIzq, int velocidadDer) {
-  // Limitamos rango PWM
   velocidadIzq = constrain(velocidadIzq, -255, 255);
   velocidadDer = constrain(velocidadDer, -255, 255);
 
-  // Motor Izquierdo
   if (velocidadIzq >= 0) {
-    digitalWrite(PIN_Motor_BIN_1, HIGH); 
-    analogWrite(PIN_Motor_PWMB, velocidadIzq);
+    digitalWrite(PIN_Motor_BIN_1, HIGH); analogWrite(PIN_Motor_PWMB, velocidadIzq);
   } else {
-    digitalWrite(PIN_Motor_BIN_1, LOW); 
-    analogWrite(PIN_Motor_PWMB, abs(velocidadIzq)); 
+    digitalWrite(PIN_Motor_BIN_1, LOW); analogWrite(PIN_Motor_PWMB, abs(velocidadIzq)); 
   }
 
-  // Motor Derecho
   if (velocidadDer >= 0) {
-    digitalWrite(PIN_Motor_AIN_1, HIGH); 
-    analogWrite(PIN_Motor_PWMA, velocidadDer);
+    digitalWrite(PIN_Motor_AIN_1, HIGH); analogWrite(PIN_Motor_PWMA, velocidadDer);
   } else {
-    digitalWrite(PIN_Motor_AIN_1, LOW); 
-    analogWrite(PIN_Motor_PWMA, abs(velocidadDer));
+    digitalWrite(PIN_Motor_AIN_1, LOW); analogWrite(PIN_Motor_PWMA, abs(velocidadDer));
   }
 }
 
 // ==========================================
-// 4. CALLBACKS (LÓGICA)
+// 4. CALLBACKS
 // ==========================================
 
-// --- Lectura IR ---
 void callback_infra_rojos() {
   valLeft = analogRead(PIN_ITR_LEFT);
   valMiddle = analogRead(PIN_ITR_MIDDLE);
   valRight = analogRead(PIN_ITR_RIGHT);
+
+  // Actualizamos la memoria
+  if (valLeft > umbralNegro) {
+    ultimoLadoVisto = IZQUIERDA;
+  } 
+  else if (valRight > umbralNegro) {
+    ultimoLadoVisto = DERECHA;
+  }
 }
 
-// --- Lectura Ultrasonido ---
 void callback_ultra_sonido() {
-  if (estadoActual == FINALIZADO) return; // Si acabó, no leemos más
+  if (estadoActual == FINALIZADO) return; 
 
   digitalWrite(trigPin, LOW); delayMicroseconds(2);
   digitalWrite(trigPin, HIGH); delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
-  
-  duracion = pulseIn(echoPin, HIGH, 30000); // Timeout corto
+  duracion = pulseIn(echoPin, HIGH, 30000); 
 
   if (duracion == 0) distancia = 999;
   else distancia = duracion / 58;
 
-  // Solo cambiamos estado si NO hemos terminado
   if (estadoActual != FINALIZADO) {
-    if (distancia <= distanciaInicioFrenado) {
-      estadoActual = PARANDO_OBSTACULO;
-    } else {
-      estadoActual = SEGUIR_LINEA;
-    }
+    if (distancia <= distanciaInicioFrenado) estadoActual = PARANDO_OBSTACULO;
+    else if (estadoActual == PARANDO_OBSTACULO) estadoActual = SEGUIR_LINEA; 
   }
 }
 
-// --- Control Motores ---
 void callback_motor() {
-  
-  // 1. SI YA TERMINAMOS -> STOP TOTAL
   if (estadoActual == FINALIZADO) {
     mover(0, 0);
     return;
   }
 
-  // 2. LÓGICA DE FRENADO (OBSTÁCULO)
+  // --- OBSTÁCULO ---
   if (estadoActual == PARANDO_OBSTACULO) {
-    
-    // Si estamos a la distancia objetivo O MENOS (nos pasamos de frenada)
-    // CORTAMOS INMEDIATAMENTE. No corregimos hacia atrás.
     if (distancia <= distanciaObjetivo) {
       mover(0, 0);
-      estadoActual = FINALIZADO; // Bloqueo final
-      Serial.println("--- META ALCANZADA: FIN ---");
+      estadoActual = FINALIZADO;
       return; 
     }
-
-    // Cálculo proporcional SOLO HACIA ADELANTE
     int error = distancia - distanciaObjetivo;
     int velocidadFreno = (error * kp_freno);
-
-    // Aseguramos una velocidad mínima para vencer la inercia del motor
-    // pero solo si estamos lejos.
     if (velocidadFreno < 45) velocidadFreno = 45; 
-    
-    // Si por error de cálculo sale negativa, la forzamos a 0 (nunca atrás)
     if (velocidadFreno < 0) velocidadFreno = 0;
-
-    // Avanzar recto frenando
     mover(velocidadFreno, velocidadFreno);
-    
-    // Debug
-    Serial.print("Dist: "); Serial.print(distancia); 
-    Serial.print(" | Vel: "); Serial.println(velocidadFreno);
   } 
   
-  // 3. SEGUIMIENTO DE LÍNEA (PID)
-  else if (estadoActual == SEGUIR_LINEA) {
+  // --- SEGUIR LÍNEA / RECUPERACIÓN ---
+  else {
+    bool lineaPerdida = (valLeft < umbralNegro && valMiddle < umbralNegro && valRight < umbralNegro);
+
+    if (lineaPerdida) estadoActual = BUSCANDO_LINEA;
+    else estadoActual = SEGUIR_LINEA;
+
+    // --- MODO RECUPERACIÓN (LATIGAZO) ---
+    if (estadoActual == BUSCANDO_LINEA) {
+      if (ultimoLadoVisto == IZQUIERDA) {
+        // La línea se fue a la izquierda -> Giro brusco a la izquierda
+        // Rueda IZQ frena (-20), Rueda DER a tope (200)
+        mover(velocidadGiroLenta, velocidadGiroRapida);
+      } else {
+        // La línea se fue a la derecha -> Giro brusco a la derecha
+        // Rueda IZQ a tope (200), Rueda DER frena (-20)
+        mover(velocidadGiroRapida, velocidadGiroLenta);
+      }
+    }
     
-    error_linea = valRight - valLeft;
-    derivate_linea = error_linea - prev_error_linea;
-    prev_error_linea = error_linea;
+    // --- MODO PID (RECTA/CURVA SUAVE) ---
+    else if (estadoActual == SEGUIR_LINEA) {
+      error_linea = valRight - valLeft;
+      
+      derivate_linea = error_linea - prev_error_linea;
+      prev_error_linea = error_linea;
 
-    int ajuste = (kp_linea * error_linea) + (kd_linea * derivate_linea);
+      int ajuste = (kp_linea * error_linea) + (kd_linea * derivate_linea);
 
-    int speed_left = velocidadBase + ajuste;
-    int speed_right = velocidadBase - ajuste;
+      // Zona muerta para estabilidad en recta
+      if (abs(ajuste) < 10) ajuste = 0;
+      
+      ajuste = constrain(ajuste, -velocidadBase, velocidadBase);
 
-    // Si se sale de la línea (todo blanco), paramos por seguridad 
-    // o puedes poner aquí lógica de recuperación
-    if (valLeft < 300 && valMiddle < 300 && valRight < 300) {
-       // mover(0, 0); // Descomenta si quieres que pare al perder línea
-       // Por defecto sigue con la última instrucción o recto
-    } else {
-       mover(speed_left, speed_right);
+      int speed_left = velocidadBase + ajuste;
+      int speed_right = velocidadBase - ajuste;
+
+      mover(speed_left, speed_right);
     }
   }
 }
 
-// ==========================================
-// 5. SETUP
-// ==========================================
 void setup() {
   Serial.begin(9600);
-
-  // Pines
   pinMode(PIN_Motor_STBY, OUTPUT);
   pinMode(PIN_Motor_AIN_1, OUTPUT);
   pinMode(PIN_Motor_PWMA, OUTPUT);
@@ -195,18 +193,17 @@ void setup() {
   pinMode(PIN_Motor_PWMB, OUTPUT);
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
-
   digitalWrite(PIN_Motor_STBY, HIGH);
 
-  // Hilos
+  // Tiempos ultra-rápidos
   hilo_infra_rojos.onRun(callback_infra_rojos);
-  hilo_infra_rojos.setInterval(10);
+  hilo_infra_rojos.setInterval(5); 
 
   hilo_ultra_sonido.onRun(callback_ultra_sonido);
-  hilo_ultra_sonido.setInterval(50); // Lectura cada 50ms
+  hilo_ultra_sonido.setInterval(45); 
 
   hilo_motor.onRun(callback_motor);
-  hilo_motor.setInterval(20); 
+  hilo_motor.setInterval(10); 
 
   controlador.add(&hilo_infra_rojos);
   controlador.add(&hilo_ultra_sonido);

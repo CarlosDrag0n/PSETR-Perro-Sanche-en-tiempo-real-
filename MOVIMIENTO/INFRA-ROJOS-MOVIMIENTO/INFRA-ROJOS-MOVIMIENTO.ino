@@ -1,3 +1,5 @@
+#include <Thread.h>
+#include <ThreadController.h>
 // --- Configuración de Pines Sensores ---
 #define PIN_ITR20001_LEFT   A2
 #define PIN_ITR20001_MIDDLE A1
