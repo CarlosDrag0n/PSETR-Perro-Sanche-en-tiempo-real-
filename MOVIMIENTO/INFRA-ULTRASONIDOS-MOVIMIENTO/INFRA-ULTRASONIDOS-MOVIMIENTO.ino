@@ -1,5 +1,6 @@
 #include <Thread.h>
 #include <ThreadController.h>
+#include "FastLED.h"
 
 // ==========================================
 // 1. CONFIGURACIÓN DE PINES
@@ -17,6 +18,10 @@ const int echoPin = 12;
 #define PIN_Motor_PWMA  5
 #define PIN_Motor_BIN_1 8
 #define PIN_Motor_PWMB  6 
+
+#define PIN_RBGLED 4
+#define NUM_LEDS 1
+CRGB leds[NUM_LEDS];
 
 // ==========================================
 // 2. AJUSTES PARA VELOCIDAD Y RECUPERACIÓN AGRESIVA
@@ -52,8 +57,11 @@ const int distanciaInicioFrenado = 35;
 const float kp_freno = 10.0;           
 const int velocidadMinimaFreno = 0;    
 
+// Led
+bool change_led = true;
 // --- ESTADOS ---
-enum movimiento {
+enum movimiento
+{
   SEGUIR_LINEA,
   BUSCANDO_LINEA,
   PARANDO_OBSTACULO,
@@ -70,7 +78,26 @@ Thread hilo_motor = Thread();
 // 3. FUNCIONES
 // ==========================================
 
-void mover(int velocidadIzq, int velocidadDer) {
+void go_state(int new_state)
+{
+  estadoActual = new_state;
+  change_led = true;
+}
+
+uint32_t Color(uint8_t r, uint8_t g, uint8_t b)
+{
+  return (((uint32_t)r << 16) | ((uint32_t)g << 8) | b);
+}
+
+void led_color(int r, int g, int b)
+{
+  if (change_led) {
+    FastLED.showColor(Color(r, g, b));
+    change_led = false;
+  }
+}
+void mover(int velocidadIzq, int velocidadDer)
+{
   velocidadIzq = constrain(velocidadIzq, -255, 255);
   velocidadDer = constrain(velocidadDer, -255, 255);
 
@@ -91,7 +118,8 @@ void mover(int velocidadIzq, int velocidadDer) {
 // 4. CALLBACKS
 // ==========================================
 
-void callback_infra_rojos() {
+void callback_infra_rojos()
+{
   valLeft = analogRead(PIN_ITR_LEFT);
   valMiddle = analogRead(PIN_ITR_MIDDLE);
   valRight = analogRead(PIN_ITR_RIGHT);
@@ -105,7 +133,8 @@ void callback_infra_rojos() {
   }
 }
 
-void callback_ultra_sonido() {
+void callback_ultra_sonido()
+{
   if (estadoActual == FINALIZADO) return; 
 
   digitalWrite(trigPin, LOW); delayMicroseconds(2);
@@ -117,13 +146,15 @@ void callback_ultra_sonido() {
   else distancia = duracion / 58;
 
   if (estadoActual != FINALIZADO) {
-    if (distancia <= distanciaInicioFrenado) estadoActual = PARANDO_OBSTACULO;
-    else if (estadoActual == PARANDO_OBSTACULO) estadoActual = SEGUIR_LINEA; 
+    if (distancia <= distanciaInicioFrenado) go_state(PARANDO_OBSTACULO);
+    else if (estadoActual == PARANDO_OBSTACULO) go_state(SEGUIR_LINEA); 
   }
 }
 
-void callback_motor() {
+void callback_motor()
+{
   if (estadoActual == FINALIZADO) {
+    led_color(0, 0, 255);
     mover(0, 0);
     return;
   }
@@ -132,7 +163,7 @@ void callback_motor() {
   if (estadoActual == PARANDO_OBSTACULO) {
     if (distancia <= distanciaObjetivo) {
       mover(0, 0);
-      estadoActual = FINALIZADO;
+      go_state(FINALIZADO);
       return; 
     }
     int error = distancia - distanciaObjetivo;
@@ -146,11 +177,14 @@ void callback_motor() {
   else {
     bool lineaPerdida = (valLeft < umbralNegro && valMiddle < umbralNegro && valRight < umbralNegro);
 
-    if (lineaPerdida) estadoActual = BUSCANDO_LINEA;
-    else estadoActual = SEGUIR_LINEA;
+    if (lineaPerdida) go_state(BUSCANDO_LINEA);
+    else go_state(SEGUIR_LINEA);
 
     // --- MODO RECUPERACIÓN (LATIGAZO) ---
     if (estadoActual == BUSCANDO_LINEA) {
+
+      //Enciendo el led de rojo
+      led_color(255, 0, 0);
       if (ultimoLadoVisto == IZQUIERDA) {
         // La línea se fue a la izquierda -> Giro brusco a la izquierda
         // Rueda IZQ frena (-20), Rueda DER a tope (200)
@@ -164,6 +198,9 @@ void callback_motor() {
     
     // --- MODO PID (RECTA/CURVA SUAVE) ---
     else if (estadoActual == SEGUIR_LINEA) {
+
+      //Eciendo el led de verde
+      led_color(0, 255, 0);
       error_linea = valRight - valLeft;
       
       derivate_linea = error_linea - prev_error_linea;
@@ -184,7 +221,8 @@ void callback_motor() {
   }
 }
 
-void setup() {
+void setup()
+{
   Serial.begin(9600);
   pinMode(PIN_Motor_STBY, OUTPUT);
   pinMode(PIN_Motor_AIN_1, OUTPUT);
@@ -208,8 +246,12 @@ void setup() {
   controlador.add(&hilo_infra_rojos);
   controlador.add(&hilo_ultra_sonido);
   controlador.add(&hilo_motor);
+
+  FastLED.addLeds<NEOPIXEL, PIN_RBGLED>(leds, NUM_LEDS);
+  FastLED.setBrightness(20);
 }
 
-void loop() {
+void loop()
+{
   controlador.run();
 }
