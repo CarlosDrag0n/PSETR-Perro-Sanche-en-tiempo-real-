@@ -14,7 +14,7 @@ const char* ssid = "eduroam";
 
 // --- CREDENCIALES MOVIL LUIS ---
 const char* luis_ssid = "MOVISTAR-WIFI6-4BC0";
-const char* luis_password = "****************";
+const char* luis_password = "oYc7XfiiYVgVqiEigie4";
 
 // --- MQTT ---
 #define mqtt_server "193.147.79.118"
@@ -24,11 +24,8 @@ const char* luis_password = "****************";
 // ---MESSAGES ---
 String team_name = "PSETR";
 String id = "13";
-String action;
 char caracter;
-//float time;
-//float distance;
-//float value;
+String value;
 
 WiFiClient espClient;
 
@@ -39,17 +36,69 @@ Adafruit_MQTT_Publish mqtt_pub = Adafruit_MQTT_Publish(&mqtt, mqtt_topic);
 String sendBuff;
 String message;
 
-String selectMessage(String buff)
+String selectMessage(char caracter, String float_val)
 {
-  caracter = buff[0];
+
+  String action;
+  String measurement;
 
   switch(caracter) {
-    case 'a':
-      action = "hola";
+    case 's':
+      action = "START_LAP";
+      break;
+
+    case 'f':
+      action = "END_LAP";
+      measurement = "time";
+      break;
+
+    case 'o':
+      action = "OBSTACLE_DETECTED";
+      measurement = "distance";
+      break;
+
+    case 'l':
+      action = "LINE_LOST";
+      break;
+
+    case 'p':
+      action = "PING";
+      measurement = "time";
+      break;
+    
+    case 'b':
+      action = "INIT_LINE_SEARCH";
+      break;
+    
+    case 'e':
+      action = "STOP_LINE_SEARCH";
+      break;
+
+    case 'w':
+      action = "LINE_FOUND";
+      break;
+
+    case 'v':
+      action = "VISIBLE_LINE";
+      measurement = "value";
       break;
   }
 
-return String("{") + "\"team_name\": \"" + team_name + "\", \"id\": \"" + id + "\", \"action\": \"" + action + "\"}";
+  String json = "\n{";
+  json += "\n\"team_name\": " + team_name + ",";
+  json += "\n\"id\": " + id + ",";
+  json += "\n\"action\": " + action + "";
+
+  if (measurement != "" and float_val != "") {
+    json += ",\n\"" + measurement + "\": " + float_val;
+  }
+
+  json += "\n}\n";
+
+  // Reinicio 
+  measurement = "";
+
+return json;
 }
 
 void reconnectMQTT()
@@ -104,10 +153,10 @@ void setup()
 
   // Iniciar comunicación con Arduino
   Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);
-
-  delay(2000); 
   Serial.println("Enviando señal de arranque al Arduino...");
   Serial2.print("{ 'start': 1 }"); 
+
+  delay(2000);
 }
 
 void loop()
@@ -126,8 +175,20 @@ void loop()
     
     // Si encontramos el final del mensaje JSON
     if (c == '}')  {
-      // --- CREAR FUNCIÓN DEPENDIENDO DEL CARACTER MANDE UN MENSAJE U OTRO ---
-      message = selectMessage(sendBuff);
+      //Cojo los caracteres importantes del String enviado
+      sendBuff.replace("}", "");
+      sendBuff.trim();
+      caracter = sendBuff[0];
+      
+      if (sendBuff.length() > 1) {
+        value = sendBuff.substring(1);
+      } else {
+        value = "";
+      }
+
+      // Creo el String a mandar
+      message = selectMessage(caracter, value);
+
       Serial.print("Recibido de Arduino: ");
       Serial.println(sendBuff);
       

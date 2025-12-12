@@ -26,6 +26,8 @@
 #define NUM_LEDS 1
 CRGB leds[NUM_LEDS];
 
+bool send = true;
+
 uint32_t Color(uint8_t r, uint8_t g, uint8_t b)
 {
   return (((uint32_t)r << 16) | ((uint32_t)g << 8) | b);
@@ -35,6 +37,7 @@ void setup() {
 
   Serial.begin(9600);
   delay(1000);
+  
 
   FastLED.addLeds<NEOPIXEL, PIN_RBGLED>(leds, NUM_LEDS);
   FastLED.setBrightness(20);
@@ -47,15 +50,12 @@ void setup() {
 
   // To make this code works, remember that the switch S1 should be set to "CAM"
   while(1) {
-
     if (Serial.available()) {
 
       char c = Serial.read();
       sendBuff += c;
       
-      if (c == '}')  {            
-        Serial.print("Received data in serial port from ESP32: ");
-        Serial.println(sendBuff);
+      if (c == '}')  { 
 
         // Set Red Green to LED
         FastLED.showColor(Color(0, 255, 0));
@@ -69,7 +69,11 @@ void setup() {
 
 void loop () {  
 
-  Serial.print("a}");
-  delay(500);
+  if (send == true) {
+    Serial.print("v");
+    Serial.print(17);
+    Serial.print("}");
+    send = false;
+  }
 
 }
