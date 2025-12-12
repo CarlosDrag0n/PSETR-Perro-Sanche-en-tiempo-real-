@@ -65,12 +65,11 @@ void setup() {
 
     }
   }
-
 }
 
 void loop () {  
 
-  Serial.println("{ 'test': " + String(millis()) + " }");
+  Serial.print("a}");
   delay(500);
 
 }
