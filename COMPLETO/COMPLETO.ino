@@ -33,10 +33,10 @@ unsigned long start_time = 0; // Para medir el tiempo de la vuelta
 float kp_linea = 0.4; 
 float kd_linea = 2.5;  
 int error_linea, prev_error_linea, derivate_linea;
-int velocidadBase = 120; 
+int velocidadBase = 110; 
 
 // Recuperación
-int velocidadGiroRapida = 200; 
+int velocidadGiroRapida = 180; 
 int velocidadGiroLenta = -20;  
 int umbralNegro = 400; 
 
@@ -49,7 +49,7 @@ int valLeft, valMiddle, valRight;
 long duracion;
 int distancia = 999;
 const int distanciaObjetivo = 7;       
-const int distanciaInicioFrenado = 35; 
+const int distanciaInicioFrenado = 25; 
 const float kp_freno = 10.0;           
 
 // Led
@@ -87,11 +87,11 @@ void go_state(int new_state)
 {
   // Si cambiamos DE Buscando A Seguir, significa que encontramos la línea
   if (estadoActual == BUSCANDO_LINEA && new_state == SEGUIR_LINEA) {
-     // Enviar LINE_FOUND ('w') y STOP_LINE_SEARCH ('e')
-     Serial.print("w"); // Line found
-     Serial.print("}");
-     Serial.print("e"); // Stop search
-     Serial.print("}");
+    // Enviar LINE_FOUND ('w') y STOP_LINE_SEARCH ('e')
+    Serial.print("w"); // Line found
+    Serial.print("}");
+    Serial.print("e"); // Stop search
+    Serial.print("}");
   }
 
   estadoActual = new_state;
@@ -198,16 +198,14 @@ void callback_motor()
   }
 
   // --- OBSTÁCULO ---
-  if (estadoActual == PARANDO_OBSTACULO) {
-    if (send_obstacle == true) {
+  if (estadoActual == PARANDO_OBSTACULO) {    
+    if (distancia <= distanciaObjetivo) {
+      mover(0, 0);if (send_obstacle == true) {
       Serial.print("o"); // OBSTACLE_DETECTED
       Serial.print(distancia);
       Serial.print("}");
       send_obstacle = false;
     }
-    
-    if (distancia <= distanciaObjetivo) {
-      mover(0, 0);
       go_state(FINALIZADO);
       return; 
     }
@@ -303,9 +301,7 @@ void setup()
   // Espera a que la ESP32 dé la orden de inicio (Handshake)
   String sendBuff;
   while(1) {
-    Serial.print("Hola");
     if (Serial.available()) {
-      Serial.print("Adios");
       char c = Serial.read();
       sendBuff += c;
       if (c == '}')  { 

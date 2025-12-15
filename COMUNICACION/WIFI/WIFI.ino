@@ -13,8 +13,8 @@
 const char* ssid = "wifi.fuenlabrada.acceso@urjc.es";
 const char* password = "EstasenFuenlabrada.00";
 // --- CREDENCIALES MOVIL LUIS ---
-//const char* luis_ssid = "MOVISTAR-WIFI6-4BC0";
-//const char* luis_password = "********";
+const char* luis_ssid = "Baxter";
+const char* luis_password = "12345678";
 
 // --- MQTT ---
 #define mqtt_server "193.147.79.118"
@@ -141,7 +141,7 @@ void setup()
   //WiFi.begin(ssid, WPA2_AUTH_PEAP, EAP_IDENTITY, EAP_USERNAME, EAP_PASSWORD); 
 
   // Movil luis
-  WiFi.begin(ssid, password);
+  WiFi.begin(luis_ssid, luis_password);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
