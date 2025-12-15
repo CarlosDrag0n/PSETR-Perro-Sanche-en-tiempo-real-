@@ -10,11 +10,11 @@
 #define EAP_IDENTITY "wifi.fuenlabrada.acceso@urjc.es" 
 #define EAP_PASSWORD "EstasenFuenlabrada.00"         
 #define EAP_USERNAME "wifi.fuenlabrada.acceso@urjc.es" 
-const char* ssid = "eduroam";
-
+const char* ssid = "wifi.fuenlabrada.acceso@urjc.es";
+const char* password = "EstasenFuenlabrada.00";
 // --- CREDENCIALES MOVIL LUIS ---
-const char* luis_ssid = "MOVISTAR-WIFI6-4BC0";
-const char* luis_password = "oYc7XfiiYVgVqiEigie4";
+//const char* luis_ssid = "MOVISTAR-WIFI6-4BC0";
+//const char* luis_password = "********";
 
 // --- MQTT ---
 #define mqtt_server "193.147.79.118"
@@ -141,7 +141,7 @@ void setup()
   //WiFi.begin(ssid, WPA2_AUTH_PEAP, EAP_IDENTITY, EAP_USERNAME, EAP_PASSWORD); 
 
   // Movil luis
-  WiFi.begin(luis_ssid, luis_password);
+  WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
