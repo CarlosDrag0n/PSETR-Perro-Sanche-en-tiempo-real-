@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
+#include <Thread.h>
 
 #define RXD2 33
 #define TXD2 4
@@ -35,6 +36,10 @@ Adafruit_MQTT_Publish mqtt_pub = Adafruit_MQTT_Publish(&mqtt, mqtt_topic);
 
 String sendBuff;
 String message;
+
+Thread hilo_ping = Thread();
+unsigned long start_time = 0;
+bool should_ping = true;
 
 String selectMessage(char caracter, String float_val)
 {
@@ -126,6 +131,20 @@ void reconnectMQTT()
   }
 }
 
+void callback_ping() {
+  // Solo enviar PING si la carrera ha empezado y no ha terminado
+  if (should_ping){
+    unsigned long current_lap_time = millis() - start_time;
+    message = selectMessage('p', String(current_lap_time));
+
+    if (mqtt_pub.publish(message.c_str())) {
+         Serial.println("--> Publicado en MQTT correctamente");
+      } else {
+         Serial.println("--> Fallo al publicar");
+      }
+  }
+}
+
 void setup()
 {
   Serial.begin(9600); 
@@ -156,7 +175,9 @@ void setup()
   Serial.println("Enviando señal de arranque al Arduino...");
   Serial2.print("{ 'start': 1 }"); 
 
-  delay(2000);
+  hilo_ping.enabled = true;
+  hilo_ping.onRun(callback_ping);
+  hilo_ping.setInterval(4000); 
 }
 
 void loop()
@@ -168,7 +189,12 @@ void loop()
   mqtt.processPackets(10);
   mqtt.ping();
 
-  // 2. Escuchar al Arduino
+  // 2. Mandamos el pin si ha pasado el tiempo necesario
+  if (hilo_ping.shouldRun()) {
+    hilo_ping.run();
+  }
+
+  // 3. Escuchar al Arduino
   if (Serial2.available()) {
     char c = Serial2.read();
     sendBuff += c;
@@ -184,6 +210,16 @@ void loop()
         value = sendBuff.substring(1);
       } else {
         value = "";
+      }
+
+      if (caracter == 's') {
+        start_time = millis(); 
+        should_ping = true;
+      }
+
+      if (caracter == 'f') {
+        should_ping = false;
+        hilo_ping.enabled = false;
       }
 
       // Creo el String a mandar

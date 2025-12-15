@@ -70,13 +70,20 @@ ThreadController controlador = ThreadController();
 Thread hilo_infra_rojos = Thread();
 Thread hilo_ultra_sonido = Thread();
 Thread hilo_motor = Thread();
-Thread hilo_ping = Thread(); // NUEVO: Hilo para PING
 
 // Flags de comunicación
 bool send_start = true;
 bool send_line_lost = true;
 bool send_obstacle = true;
 bool send_finish = true;
+
+int error;
+int velocidadFreno;
+bool lineaPerdida ;
+unsigned long total_time;
+int ajuste;
+int speed_left;
+int speed_right;
 
 
 // ==========================================
@@ -137,17 +144,6 @@ void mover(int velocidadIzq, int velocidadDer)
 // 4. CALLBACKS
 // ==========================================
 
-// --- NUEVO: Callback para PING cada 4 segundos ---
-void callback_ping() {
-  // Solo enviar PING si la carrera ha empezado y no ha terminado
-  if (start_time > 0 && estadoActual != FINALIZADO) {
-    unsigned long current_lap_time = millis() - start_time;
-    
-    Serial.print("p"); // Caracter para PING
-    Serial.print(current_lap_time);
-    Serial.print("}");
-  }
-}
 
 void callback_infra_rojos()
 {
@@ -183,49 +179,45 @@ void callback_ultra_sonido()
 
 void callback_motor()
 {
+  lineaPerdida = (valLeft < umbralNegro && valMiddle < umbralNegro && valRight < umbralNegro);
   // --- FIN DE VUELTA ---
-  if (estadoActual == FINALIZADO) {
-    if (send_finish == true) {
-      unsigned long total_time = millis() - start_time;
-      Serial.print("f"); // END_LAP
-      Serial.print(total_time); // Tiempo real calculado
-      Serial.print("}");
-      send_finish = false;
-    }
-    led_color(0, 0, 255);
-    mover(0, 0);
-    return;
-  }
+  switch(estadoActual){
+    case FINALIZADO:
+      if (send_finish == true) {
+        total_time = millis() - start_time;
+        Serial.print("f"); // END_LAP
+        Serial.print(total_time); // Tiempo real calculado
+        Serial.print("}");
+        send_finish = false;
+      }
+      led_color(0, 0, 255);
+      mover(0, 0);
+      break;
 
-  // --- OBSTÁCULO ---
-  if (estadoActual == PARANDO_OBSTACULO) {    
-    if (distancia <= distanciaObjetivo) {
-      mover(0, 0);if (send_obstacle == true) {
-      Serial.print("o"); // OBSTACLE_DETECTED
-      Serial.print(distancia);
-      Serial.print("}");
-      send_obstacle = false;
-    }
-      go_state(FINALIZADO);
-      return; 
-    }
-    int error = distancia - distanciaObjetivo;
-    int velocidadFreno = (error * kp_freno);
-    if (velocidadFreno < 45) velocidadFreno = 45; 
-    if (velocidadFreno < 0) velocidadFreno = 0;
-    mover(velocidadFreno, velocidadFreno);
-  } 
-  
-  // --- SEGUIR LÍNEA / RECUPERACIÓN ---
-  else {
-    bool lineaPerdida = (valLeft < umbralNegro && valMiddle < umbralNegro && valRight < umbralNegro);
+    case PARANDO_OBSTACULO:
+      if (distancia <= distanciaObjetivo) {
+        mover(0, 0);
+        if (send_obstacle == true) {
+          Serial.print("o"); // OBSTACLE_DETECTED
+          Serial.print(distancia);
+          Serial.print("}");
+          send_obstacle = false;
+        }
+        go_state(FINALIZADO);
+        return; 
+      }
+      error = distancia - distanciaObjetivo;
+      velocidadFreno = (error * kp_freno);
+      if (velocidadFreno < 45) velocidadFreno = 45; 
+      if (velocidadFreno < 0) velocidadFreno = 0;
+      mover(velocidadFreno, velocidadFreno);
+      break;
 
-    // Transiciones de estado
-    if (lineaPerdida && estadoActual == SEGUIR_LINEA) go_state(BUSCANDO_LINEA);
-    else if (!lineaPerdida && estadoActual == BUSCANDO_LINEA) go_state(SEGUIR_LINEA);
-
-    // --- MODO RECUPERACIÓN (LATIGAZO) ---
-    if (estadoActual == BUSCANDO_LINEA) {
+    case BUSCANDO_LINEA:
+      if (!lineaPerdida) {
+        go_state(SEGUIR_LINEA);
+        break;
+      }
       if (send_line_lost == true) {
         Serial.print("l"); // LINE_LOST
         Serial.print("}");
@@ -241,26 +233,30 @@ void callback_motor()
       } else {
         mover(velocidadGiroRapida, velocidadGiroLenta);
       }
-    }
-    
-    // --- MODO PID (RECTA/CURVA SUAVE) ---
-    else if (estadoActual == SEGUIR_LINEA) {
+      break;
+
+    case SEGUIR_LINEA:
+      if (lineaPerdida){
+        go_state(BUSCANDO_LINEA);
+        break;
+      }
+
       led_color(0, 255, 0);
       error_linea = valRight - valLeft;
       
       derivate_linea = error_linea - prev_error_linea;
       prev_error_linea = error_linea;
 
-      int ajuste = (kp_linea * error_linea) + (kd_linea * derivate_linea);
+      ajuste = (kp_linea * error_linea) + (kd_linea * derivate_linea);
 
       if (abs(ajuste) < 10) ajuste = 0;
       ajuste = constrain(ajuste, -velocidadBase, velocidadBase);
 
-      int speed_left = velocidadBase + ajuste;
-      int speed_right = velocidadBase - ajuste;
+      speed_left = velocidadBase + ajuste;
+      speed_right = velocidadBase - ajuste;
 
       mover(speed_left, speed_right);
-    }
+      break;
   }
 }
 
@@ -286,14 +282,10 @@ void setup()
   hilo_motor.onRun(callback_motor);
   hilo_motor.setInterval(10); 
 
-  // --- CONFIGURACIÓN PING ---
-  hilo_ping.onRun(callback_ping);
-  hilo_ping.setInterval(4000); // Cada 4 segundos (4000ms)
 
   controlador.add(&hilo_infra_rojos);
   controlador.add(&hilo_ultra_sonido);
   controlador.add(&hilo_motor);
-  controlador.add(&hilo_ping); // Añadimos el ping al controlador
 
   FastLED.addLeds<NEOPIXEL, PIN_RBGLED>(leds, NUM_LEDS);
   FastLED.setBrightness(20);
