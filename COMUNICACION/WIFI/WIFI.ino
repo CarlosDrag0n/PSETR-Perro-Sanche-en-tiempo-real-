@@ -83,7 +83,7 @@ String selectMessage(char caracter, String float_val)
       action = "LINE_FOUND";
       break;
 
-    case 'v':
+    case 't':
       action = "VISIBLE_LINE";
       measurement = "value";
       break;

@@ -49,7 +49,7 @@ int valLeft, valMiddle, valRight;
 long duracion;
 float distancia = 999.0;
 const float distanciaObjetivo = 7.0;       
-const float distanciaInicioFrenado = 25.0; 
+const float distanciaInicioFrenado = 28.0; 
 const float kp_freno = 10.0;           
 
 // Led
@@ -77,6 +77,17 @@ bool send_line_lost = true;
 bool send_obstacle = true;
 bool send_finish = true;
 
+int error;
+int velocidadFreno;
+bool lineaPerdida ;
+unsigned long total_time;
+int ajuste;
+int speed_left;
+int speed_right;
+float in_line = 0;
+float off_line = 0;
+float total_line = 0;
+float porcentaje;
 
 // ==========================================
 // 3. FUNCIONES AUXILIARES
@@ -172,8 +183,15 @@ void callback_motor()
 {
   // --- FIN DE VUELTA ---
   if (estadoActual == FINALIZADO) {
+    total_time = in_line + off_line;
+    porcentaje = 100*(in_line / total_time);
+
     if (send_finish == true) {
-      unsigned long total_time = millis() - start_time;
+      Serial.print("t"); // VISIBLE_LINE
+      Serial.print(porcentaje); // Porcentaje en la linea
+      Serial.print("}");
+
+      total_time = millis() - start_time;
       Serial.print("f"); // END_LAP
       Serial.print(total_time); // Tiempo real calculado
       Serial.print("}");
@@ -197,8 +215,8 @@ void callback_motor()
       go_state(FINALIZADO);
       return; 
     }
-    int error = distancia - distanciaObjetivo;
-    int velocidadFreno = (error * kp_freno);
+    error = distancia - distanciaObjetivo;
+    velocidadFreno = (error * kp_freno);
     if (velocidadFreno < 45) velocidadFreno = 45; 
     if (velocidadFreno < 0) velocidadFreno = 0;
     mover(velocidadFreno, velocidadFreno);
@@ -206,7 +224,7 @@ void callback_motor()
   
   // --- SEGUIR LÍNEA / RECUPERACIÓN ---
   else {
-    bool lineaPerdida = (valLeft < umbralNegro && valMiddle < umbralNegro && valRight < umbralNegro);
+    lineaPerdida = (valLeft < umbralNegro && valMiddle < umbralNegro && valRight < umbralNegro);
 
     // Transiciones de estado
     if (lineaPerdida && estadoActual == SEGUIR_LINEA) go_state(BUSCANDO_LINEA);
@@ -214,6 +232,7 @@ void callback_motor()
 
     // --- MODO RECUPERACIÓN (LATIGAZO) ---
     if (estadoActual == BUSCANDO_LINEA) {
+      off_line++;
       if (send_line_lost == true) {
         Serial.print("l"); // LINE_LOST
         Serial.print("}");
@@ -233,19 +252,20 @@ void callback_motor()
     
     // --- MODO PID (RECTA/CURVA SUAVE) ---
     else if (estadoActual == SEGUIR_LINEA) {
+      in_line++;
       led_color(0, 255, 0);
       error_linea = valRight - valLeft;
       
       derivate_linea = error_linea - prev_error_linea;
       prev_error_linea = error_linea;
 
-      int ajuste = (kp_linea * error_linea) + (kd_linea * derivate_linea);
+      ajuste = (kp_linea * error_linea) + (kd_linea * derivate_linea);
 
       if (abs(ajuste) < 10) ajuste = 0;
       ajuste = constrain(ajuste, -velocidadBase, velocidadBase);
 
-      int speed_left = velocidadBase + ajuste;
-      int speed_right = velocidadBase - ajuste;
+      speed_left = velocidadBase + ajuste;
+      speed_right = velocidadBase - ajuste;
 
       mover(speed_left, speed_right);
     }
