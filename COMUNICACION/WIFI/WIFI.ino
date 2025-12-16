@@ -1,9 +1,14 @@
 #include <WiFi.h>
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
+#include <Thread.h>
 
 #define RXD2 33
 #define TXD2 4
+
+Thread hilo_ping = Thread(); // NUEVO: Hilo para PING
+unsigned long start_time = 0;
+bool should_ping = false;
 
 // --- CREDENCIALES EDUROAM ---
 #define EAP_ANONYMOUS_IDENTITY "20220719anonymous@urjc.es"
@@ -82,6 +87,9 @@ String selectMessage(char caracter, String float_val)
       action = "VISIBLE_LINE";
       measurement = "value";
       break;
+    
+    default:
+      return "";
   }
 
   String json = "\n{";
@@ -99,6 +107,20 @@ String selectMessage(char caracter, String float_val)
   measurement = "";
 
 return json;
+}
+
+void callback_ping() {
+  // Solo enviar PING si la carrera ha empezado y no ha terminado
+  if (should_ping) {
+    unsigned long current_lap_time = millis() - start_time;
+    message = selectMessage('p', String(current_lap_time));
+
+    if (mqtt_pub.publish(message.c_str())) {
+      Serial.println("--> Publicado en MQTT correctamente");
+    } else {
+      Serial.println("--> Fallo al publicar");
+    }
+  }
 }
 
 void reconnectMQTT()
@@ -156,6 +178,10 @@ void setup()
   Serial.println("Enviando señal de arranque al Arduino...");
   Serial2.print("{ 'start': 1 }"); 
 
+  hilo_ping.enabled = true;
+  hilo_ping.onRun(callback_ping);
+  hilo_ping.setInterval(4000);
+
   delay(2000);
 }
 
@@ -168,7 +194,12 @@ void loop()
   mqtt.processPackets(10);
   mqtt.ping();
 
-  // 2. Escuchar al Arduino
+  // 2. Mandamos el pin si ha pasado el tiempo necesario
+  if (hilo_ping.shouldRun()) {
+    hilo_ping.run();
+  }
+
+  // 3. Escuchar al Arduino
   if (Serial2.available()) {
     char c = Serial2.read();
     sendBuff += c;
@@ -181,6 +212,16 @@ void loop()
 
       if (sendBuff.length() > 0) {
         caracter = sendBuff[0];
+
+        if (caracter == 's') {
+          start_time = millis(); 
+          should_ping = true;
+        }
+
+        if (caracter == 'f') {
+          should_ping = false;
+          hilo_ping.enabled = false;
+        }
         
         if (sendBuff.length() > 1) {
           value = sendBuff.substring(1);
@@ -194,11 +235,13 @@ void loop()
         Serial.print("Recibido de Arduino: ");
         Serial.println(sendBuff);
         
+        if (message != "") {
         // Enviamos al MQTT
-        if (mqtt_pub.publish(message.c_str())) {
-          Serial.println("--> Publicado en MQTT correctamente");
-        } else {
-          Serial.println("--> Fallo al publicar");
+          if (mqtt_pub.publish(message.c_str())) {
+            Serial.println("--> Publicado en MQTT correctamente");
+          } else {
+            Serial.println("--> Fallo al publicar");
+          }
         }
       }
       // Limpiamos el buffer para el siguiente mensaje

@@ -47,9 +47,9 @@ int valLeft, valMiddle, valRight;
 
 // Ultrasonidos
 long duracion;
-float distancia = 999;
-const float distanciaObjetivo = 7;       
-const float distanciaInicioFrenado = 25; 
+float distancia = 999.0;
+const float distanciaObjetivo = 7.0;       
+const float distanciaInicioFrenado = 25.0; 
 const float kp_freno = 10.0;           
 
 // Led
@@ -70,7 +70,6 @@ ThreadController controlador = ThreadController();
 Thread hilo_infra_rojos = Thread();
 Thread hilo_ultra_sonido = Thread();
 Thread hilo_motor = Thread();
-Thread hilo_ping = Thread(); // NUEVO: Hilo para PING
 
 // Flags de comunicación
 bool send_start = true;
@@ -137,18 +136,6 @@ void mover(int velocidadIzq, int velocidadDer)
 // 4. CALLBACKS
 // ==========================================
 
-// --- NUEVO: Callback para PING cada 4 segundos ---
-void callback_ping() {
-  // Solo enviar PING si la carrera ha empezado y no ha terminado
-  if (start_time > 0 && estadoActual != FINALIZADO) {
-    unsigned long current_lap_time = millis() - start_time;
-    
-    Serial.print("p"); // Caracter para PING
-    Serial.print(current_lap_time);
-    Serial.print("}");
-  }
-}
-
 void callback_infra_rojos()
 {
   valLeft = analogRead(PIN_ITR_LEFT);
@@ -172,8 +159,8 @@ void callback_ultra_sonido()
   digitalWrite(trigPin, LOW);
   duracion = pulseIn(echoPin, HIGH, 30000); 
 
-  if (duracion == 0) distancia = 999;
-  else distancia = duracion / 58;
+  if (duracion == 0) distancia = 999.0;
+  else distancia = duracion / 58.0;
 
   if (estadoActual != FINALIZADO) {
     if (distancia <= distanciaInicioFrenado) go_state(PARANDO_OBSTACULO);
@@ -200,11 +187,12 @@ void callback_motor()
   // --- OBSTÁCULO ---
   if (estadoActual == PARANDO_OBSTACULO) {    
     if (distancia <= distanciaObjetivo) {
-      mover(0, 0);if (send_obstacle == true) {
-      Serial.print("o"); // OBSTACLE_DETECTED
-      Serial.print(distancia);
-      Serial.print("}");
-      send_obstacle = false;
+      mover(0, 0);
+      if (send_obstacle == true) {
+        Serial.print("o"); // OBSTACLE_DETECTED
+        Serial.print(distancia);
+        Serial.print("}");
+        send_obstacle = false;
     }
       go_state(FINALIZADO);
       return; 
@@ -286,14 +274,9 @@ void setup()
   hilo_motor.onRun(callback_motor);
   hilo_motor.setInterval(10); 
 
-  // --- CONFIGURACIÓN PING ---
-  hilo_ping.onRun(callback_ping);
-  hilo_ping.setInterval(4000); // Cada 4 segundos (4000ms)
-
   controlador.add(&hilo_infra_rojos);
   controlador.add(&hilo_ultra_sonido);
   controlador.add(&hilo_motor);
-  controlador.add(&hilo_ping); // Añadimos el ping al controlador
 
   FastLED.addLeds<NEOPIXEL, PIN_RBGLED>(leds, NUM_LEDS);
   FastLED.setBrightness(20);
