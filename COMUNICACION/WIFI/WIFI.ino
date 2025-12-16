@@ -1,7 +1,6 @@
 #include <WiFi.h>
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
-#include <Thread.h>
 
 #define RXD2 33
 #define TXD2 4
@@ -14,13 +13,13 @@
 const char* ssid = "wifi.fuenlabrada.acceso@urjc.es";
 const char* password = "EstasenFuenlabrada.00";
 // --- CREDENCIALES MOVIL LUIS ---
-const char* luis_ssid = "Baxter";
-const char* luis_password = "12345678";
+const char* luis_ssid = "LuisMovible";
+const char* luis_password = "luis_pass";
 
 // --- MQTT ---
 #define mqtt_server "193.147.79.118"
 #define mqtt_port 21883
-#define mqtt_topic "/SETR/2025/si/"
+#define mqtt_topic "/SETR/2025/13/"
 
 // ---MESSAGES ---
 String team_name = "PSETR";
@@ -36,10 +35,6 @@ Adafruit_MQTT_Publish mqtt_pub = Adafruit_MQTT_Publish(&mqtt, mqtt_topic);
 
 String sendBuff;
 String message;
-
-Thread hilo_ping = Thread();
-unsigned long start_time = 0;
-bool should_ping = true;
 
 String selectMessage(char caracter, String float_val)
 {
@@ -90,9 +85,9 @@ String selectMessage(char caracter, String float_val)
   }
 
   String json = "\n{";
-  json += "\n\"team_name\": " + team_name + ",";
-  json += "\n\"id\": " + id + ",";
-  json += "\n\"action\": " + action + "";
+  json += "\n\"team_name\": \"" + team_name + "\",";
+  json += "\n\"id\": \"" + id + "\",";
+  json += "\n\"action\": \"" + action + "\"";
 
   if (measurement != "" and float_val != "") {
     json += ",\n\"" + measurement + "\": " + float_val;
@@ -131,20 +126,6 @@ void reconnectMQTT()
   }
 }
 
-void callback_ping() {
-  // Solo enviar PING si la carrera ha empezado y no ha terminado
-  if (should_ping){
-    unsigned long current_lap_time = millis() - start_time;
-    message = selectMessage('p', String(current_lap_time));
-
-    if (mqtt_pub.publish(message.c_str())) {
-         Serial.println("--> Publicado en MQTT correctamente");
-      } else {
-         Serial.println("--> Fallo al publicar");
-      }
-  }
-}
-
 void setup()
 {
   Serial.begin(9600); 
@@ -175,9 +156,7 @@ void setup()
   Serial.println("Enviando señal de arranque al Arduino...");
   Serial2.print("{ 'start': 1 }"); 
 
-  hilo_ping.enabled = true;
-  hilo_ping.onRun(callback_ping);
-  hilo_ping.setInterval(4000); 
+  delay(2000);
 }
 
 void loop()
@@ -189,12 +168,7 @@ void loop()
   mqtt.processPackets(10);
   mqtt.ping();
 
-  // 2. Mandamos el pin si ha pasado el tiempo necesario
-  if (hilo_ping.shouldRun()) {
-    hilo_ping.run();
-  }
-
-  // 3. Escuchar al Arduino
+  // 2. Escuchar al Arduino
   if (Serial2.available()) {
     char c = Serial2.read();
     sendBuff += c;
@@ -204,37 +178,29 @@ void loop()
       //Cojo los caracteres importantes del String enviado
       sendBuff.replace("}", "");
       sendBuff.trim();
-      caracter = sendBuff[0];
-      
-      if (sendBuff.length() > 1) {
-        value = sendBuff.substring(1);
-      } else {
-        value = "";
+
+      if (sendBuff.length() > 0) {
+        caracter = sendBuff[0];
+        
+        if (sendBuff.length() > 1) {
+          value = sendBuff.substring(1);
+        } else {
+          value = "";
+        }
+
+        // Creo el String a mandar
+        message = selectMessage(caracter, value);
+
+        Serial.print("Recibido de Arduino: ");
+        Serial.println(sendBuff);
+        
+        // Enviamos al MQTT
+        if (mqtt_pub.publish(message.c_str())) {
+          Serial.println("--> Publicado en MQTT correctamente");
+        } else {
+          Serial.println("--> Fallo al publicar");
+        }
       }
-
-      if (caracter == 's') {
-        start_time = millis(); 
-        should_ping = true;
-      }
-
-      if (caracter == 'f') {
-        should_ping = false;
-        hilo_ping.enabled = false;
-      }
-
-      // Creo el String a mandar
-      message = selectMessage(caracter, value);
-
-      Serial.print("Recibido de Arduino: ");
-      Serial.println(sendBuff);
-      
-      // Enviamos al MQTT
-      if (mqtt_pub.publish(message.c_str())) {
-         Serial.println("--> Publicado en MQTT correctamente");
-      } else {
-         Serial.println("--> Fallo al publicar");
-      }
-
       // Limpiamos el buffer para el siguiente mensaje
       sendBuff = "";
     } 
