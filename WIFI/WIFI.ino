@@ -6,7 +6,7 @@
 #define RXD2 33
 #define TXD2 4
 
-Thread hilo_ping = Thread(); // NUEVO: Hilo para PING
+Thread hilo_ping = Thread(); 
 unsigned long start_time = 0;
 bool should_ping = false;
 
@@ -17,6 +17,7 @@ bool should_ping = false;
 #define EAP_USERNAME "wifi.fuenlabrada.acceso@urjc.es" 
 const char* ssid = "wifi.fuenlabrada.acceso@urjc.es";
 const char* password = "EstasenFuenlabrada.00";
+
 // --- CREDENCIALES MOVIL LUIS ---
 const char* luis_ssid = "LuisMovible";
 const char* luis_password = "luis_pass";
