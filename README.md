@@ -9,8 +9,6 @@ Una vez que comprobamos que todo funciona bien, empezamos a realizar el movimien
 
 ## 2. Movimiento 
 
-## 2. Movimiento
-
 Para la gestión del movimiento del robot hemos implementado una arquitectura basada en **Hilos (Threads)** utilizando la librería `ThreadController`. Esto nos permite ejecutar las tareas de lectura de sensores y control de motores de forma pseudo-paralela con intervalos de tiempo definidos:
 
 * **Lectura de Infrarrojos:** Cada 5ms.
