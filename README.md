@@ -31,7 +31,7 @@ Hemos definido un `enum` llamado `movimiento` que gestiona cuatro estados princi
 Mientras el robot se encuentra en el estado `SEGUIR_LINEA`, el movimiento se rige por un algoritmo **PD (Proporcional-Derivativo)**.
 
 * **Cálculo del error:** Se obtiene restando la lectura del sensor derecho menos el izquierdo (`valRight - valLeft`).
-* **Constantes:** Tras varias pruebas empíricas, ajustamos las constantes a:
+* **Constantes:** Tras varias pruebas, ajustamos las constantes a:
     * $K_p = 0.4$: Para la reacción proporcional al error actual.
     * $K_d = 2.5$: Para suavizar la oscilación prediciendo el error futuro.
 * **Velocidad Base:** Fijada en 110 PWM.
