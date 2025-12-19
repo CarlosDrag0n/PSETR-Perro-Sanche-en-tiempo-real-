@@ -14,7 +14,7 @@ Una vez que comprobamos que todo funciona bien, empezamos a realizar el movimien
 Para la gestión del movimiento del robot hemos implementado una arquitectura basada en **Hilos (Threads)** utilizando la librería `ThreadController`. Esto nos permite ejecutar las tareas de lectura de sensores y control de motores de forma pseudo-paralela con intervalos de tiempo definidos:
 
 * **Lectura de Infrarrojos:** Cada 5ms.
-* **Lectura de Ultrasonidos:** Cada 45ms (para evitar ecos).
+* **Lectura de Ultrasonidos:** Cada 45ms.
 * **Control de Motores y Lógica de Estados:** Cada 10ms.
 
 El núcleo del movimiento se basa en una **Máquina de Estados Finitos** que decide el comportamiento del robot en función de las lecturas de los sensores.
@@ -44,10 +44,10 @@ El ajuste resultante se suma a un motor y se resta al otro, permitiendo correcci
 
 Si el robot pierde la línea (todos los sensores por debajo del `umbralNegro`), entra en el estado `BUSCANDO_LINEA`. Para saber hacia dónde girar, utilizamos una variable global `ultimoLadoVisto`:
 
-* Si lo último que vio fue la **Izquierda**, aplica un giro drástico hacia la izquierda.
+* Si lo último que vio fue la **Izquierda**, aplica un giro hacia la izquierda.
 * Si fue la **Derecha**, gira hacia la derecha.
 
-Este giro no es un movimiento suave, sino un giro sobre su propio eje o muy cerrado, configurado con una `velocidadGiroRapida` (180) en una rueda y una `velocidadGiroLenta` (-20) en la otra. El valor negativo invierte la polaridad del motor, haciendo que la reacción para volver a encontrar la línea sea inmediata (efecto "latigazo").
+Este giro no es un movimiento suave, sino un giro sobre su propio eje o muy cerrado, configurado con una `velocidadGiroRapida` (180) en una rueda y una `velocidadGiroLenta` (-20) en la otra. El valor negativo invierte la polaridad del motor, haciendo que la reacción para volver a encontrar la línea sea inmediata.
 
 ### 2.4. Detección de Obstáculos y Frenado
 
