@@ -9,6 +9,54 @@ Una vez que comprobamos que todo funciona bien, empezamos a realizar el movimien
 
 ## 2. Movimiento 
 
+## 2. Movimiento
+
+Para la gestión del movimiento del robot hemos implementado una arquitectura basada en **Hilos (Threads)** utilizando la librería `ThreadController`. Esto nos permite ejecutar las tareas de lectura de sensores y control de motores de forma pseudo-paralela con intervalos de tiempo definidos:
+
+* **Lectura de Infrarrojos:** Cada 5ms.
+* **Lectura de Ultrasonidos:** Cada 45ms (para evitar ecos).
+* **Control de Motores y Lógica de Estados:** Cada 10ms.
+
+El núcleo del movimiento se basa en una **Máquina de Estados Finitos** que decide el comportamiento del robot en función de las lecturas de los sensores.
+
+### 2.1. Máquina de Estados
+
+Hemos definido un `enum` llamado `movimiento` que gestiona cuatro estados principales. La transición entre ellos se controla mediante la función auxiliar `go_state()`, la cual también se encarga de gestionar los flags de comunicación y cambiar el color del LED de estado.
+
+1.  **SEGUIR_LINEA (LED Verde):** Es el estado por defecto. El robot utiliza un control PID para mantenerse sobre la línea negra.
+2.  **BUSCANDO_LINEA (LED Rojo):** Se activa cuando los tres sensores infrarrojos leen "blanco" (`lineaPerdida`). El robot entra en modo de recuperación.
+3.  **PARANDO_OBSTACULO (LED Azul):** Se activa cuando el sensor de ultrasonidos detecta un objeto a menos de `distanciaInicioFrenado` (28 cm).
+4.  **FINALIZADO:** Estado de parada total. Se activa cuando el robot ha llegado a la distancia objetivo del obstáculo (7 cm), indicando el fin de la vuelta.
+
+### 2.2. Algoritmo de Control (PID)
+
+Mientras el robot se encuentra en el estado `SEGUIR_LINEA`, el movimiento se rige por un algoritmo **PD (Proporcional-Derivativo)**.
+
+* **Cálculo del error:** Se obtiene restando la lectura del sensor derecho menos el izquierdo (`valRight - valLeft`).
+* **Constantes:** Tras varias pruebas empíricas, ajustamos las constantes a:
+    * $K_p = 0.4$: Para la reacción proporcional al error actual.
+    * $K_d = 2.5$: Para suavizar la oscilación prediciendo el error futuro.
+* **Velocidad Base:** Fijada en 110 PWM.
+
+El ajuste resultante se suma a un motor y se resta al otro, permitiendo correcciones suaves en rectas y curvas abiertas.
+
+### 2.3. Lógica de Recuperación (Buscando Línea)
+
+Si el robot pierde la línea (todos los sensores por debajo del `umbralNegro`), entra en el estado `BUSCANDO_LINEA`. Para saber hacia dónde girar, utilizamos una variable global `ultimoLadoVisto`:
+
+* Si lo último que vio fue la **Izquierda**, aplica un giro drástico hacia la izquierda.
+* Si fue la **Derecha**, gira hacia la derecha.
+
+Este giro no es un movimiento suave, sino un giro sobre su propio eje o muy cerrado, configurado con una `velocidadGiroRapida` (180) en una rueda y una `velocidadGiroLenta` (-20) en la otra. El valor negativo invierte la polaridad del motor, haciendo que la reacción para volver a encontrar la línea sea inmediata (efecto "latigazo").
+
+### 2.4. Detección de Obstáculos y Frenado
+
+El hilo de ultrasonidos calcula la distancia constantemente. Si baja de 28cm, cambiamos al estado `PARANDO_OBSTACULO`.
+
+En este estado, el control PID se desactiva y entra en juego un **frenado proporcional**:
+* La velocidad de los motores se calcula en función de la distancia restante hasta el objetivo (7 cm) multiplicada por una constante de frenado (`kp_freno = 10.0`).
+* Esto hace que el robot decelere suavemente a medida que se acerca a la pared, deteniéndose por completo y cambiando al estado `FINALIZADO` al llegar a la distancia objetivo.
+
 ## 3. Comunicación
 
 Antes de nada, como comentamos anteriormente, hicimos una prueba para mandar mensajes simples a través de las placas, por MQTT y la conexión wifi.
