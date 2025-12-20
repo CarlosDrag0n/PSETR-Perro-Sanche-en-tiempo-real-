@@ -4,7 +4,7 @@ Práctica Realizada por Luis Laria Urbina y Carlos García Escolano
 
 ## 1. Organización del código
 
-haber trabajado nunca de esta forma y con no mucho tiempo por delante decidimos no arriesgarnos.
+La primera decisión que tomamos fue hacerlo con Arduino threads y si luego nos daba tiempo pasarlo a rt, ya que al no haber trabajado nunca de esta forma y con no mucho tiempo por delante decidimos no arriesgarnos.
 
 Para organizar el proyecto, primero hemos hecho pruebas simples de los sensores, utilizando como guias las códigos proporcionados. 
 Una vez que comprobamos que todo funciona bien, empezamos a realizar el movimiento del siguelineas.
