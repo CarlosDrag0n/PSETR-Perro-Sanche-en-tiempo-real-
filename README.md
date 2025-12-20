@@ -59,28 +59,34 @@ En este estado, el control PID se desactiva y entra en juego un **frenado propor
 
 ## 3. Comunicación
 
-Antes de nada, como comentamos anteriormente, hicimos una prueba para mandar mensajes simples a través de las placas a través del puerto serie con el código de pruba que se nos proporcionó. Una vez que comprobamos que funcioanab la conexión comprobamos la conexión wifi con otro código de prueba que se nos proporcionó.
+Antes de nada, como comentamos anteriormente, hicimos una prueba para mandar mensajes simples a través de las placas a través del puerto serie con el código de prueba que se nos proporcionó. Una vez que comprobamos que funcionaba la conexión comprobamos la conexión wifi con otro código de prueba que se nos proporcionó.
 
-Una vez entendido todo, lo que hice primero fue crear una función que devolviese el mensaje en un String con el formato JSON dependiendo del caracter y el valor de entrada, comprobé su funcionamiento con un código de prueba del arduino mandando caracteres y valores.
+### 3.1 MQTT
 
-Para filtrar los mensajes que envía el arduino al esp32, utilicé dos funciones, primero como el mensaje se acaba cuando se lee el caracter **"}"**, lo que hice fue cambiar este caracter por un caracter vacío **""** y luego eliminar el caracter vacío u otros elementos como **\r\n**, los cuales se meten en los mensajes enviados al hacer un *println*, en nuestro casi al principio los utilizamos, pero luego lo modificamos a simplemente *print*
+Una vez entendido todo, lo que hice primero fue crear una función que devolviese el mensaje en un String con el formato JSON dependiendo del carácter y el valor de entrada, comprobé su funcionamiento con un código de prueba del arduino mandando carácteres y valores.
 
-Ya con los mensajes bien estructurados, añadí en el código de movimiento del arduino todo lo necesario para poder mandar mensajes, es decir, meter en el setup el while que comprueba que haya conexióncon la esp32, y añadí en cada state el envío del mensaje correspondiente.
+Para filtrar los mensajes que envía el arduino al ESP32, utilicé dos funciones, primero como el mensaje se acaba cuando se lee el carácter **"}"**, lo que hice fue cambiar este carácter por un carácter vacío **""** y luego eliminar el carácter vacío u otros elementos como **\r\n**, los cuales se meten en los mensajes enviados al hacer un *println*,al principio los utilizamos, pero luego lo modificamos a simplemente *print*
 
-También al final de la práctica cambié el ping, este en un primer momento calculaba el tiempo a través de un thread en arduino y cada 4s se mandaba a la esp32 la orden de enviar por wifi el ping, pero, hablando con compañeros en el laboratorio, decidí hacer el "cálculo" del tiempo esp32, ya que tenerlo en la arduino producía más errores tiempo por el envío del mensaje entre placas y todas las tareas.
-Para hacer esto simplemente copié el thread en el esp32, con un booleano que pongo a true y un contador que inicio cuando llega la orden de enviar el mensaje de START_LAP y pongo a false en END_LAP y a través del thread decido si mandarlo el ping o no.
+Ya con los mensajes bien estructurados, añadí en el código de movimiento del arduino todo lo necesario para poder mandar mensajes, es decir, meter en el setup el while que comprueba que haya conexión con la ESP32, y añadí en cada *state* el envío del mensaje correspondiente.
 
-Además esta implementación hace que el contador del ping y de la vuelta sean distintos, acercando aún más los tiempos del ping a 4s.
+También al final de la práctica cambié el ping, este en un primer momento calculaba el tiempo a través de un *thread* en arduino y cada 4s se mandaba a la ESP32 la orden de enviar por WiFi el ping, pero, hablando con compañeros en el laboratorio, decidí hacer el "cálculo" del tiempo ESP32, ya que tenerlo en la arduino producía más errores de tiempo por el envío del mensaje entre placas y todas las tareas.
+Para hacer esto simplemente copié el *thread* en el ESP32, con un booleano que pongo a true y un contador que inicio cuando llega la orden de enviar el mensaje de START_LAP y pongo a false en END_LAP y a través del *thread* decido si mandar el ping o no.
 
-En cuanto a la comunicación ,en el setup iniciamos la configuración con el ssid y la contraseña y se intenta conectar, hasta que no se detecta que se ha conectado correctamente la conexión wifi, el programa no avanzará.
+Además, esta implementación hace que el contador del ping y de la vuelta sean distintos, acercando aún más los tiempos del ping a 4s.
 
-### 3.1 Dificultades encontradas
+### 3.1 WiFi
+
+En cuanto a la comunicación WiFi, lo primero, cambiamos las credenciales de eduroam a las que se nos dijeron en clase y creamos un ssid y contraseña para el WiFi del móvil.
+
+Luego en el setup iniciamos la configuración con el ssid y la contraseña y se intenta conectar, hasta que no se detecta que se ha conectado correctamente la conexión WiFi, el programa no avanzará.
+
+### 3.3 Dificultades encontradas
 
 Algunas de las dificultades que he tenido han sido:
  
-1. Depurando errores como envio de mensajes vacíos, que solucioné comprobando la longitud del mensaje enviado por el arduino y añadiendo al switch de la funcion de crear los mensajes un estado deault que ponga el mensaje vacío si no se le ha introducido uno de los caracteres deseados.
+1. Depurando errores como envío de mensajes vacíos, que solucioné comprobando la longitud del mensaje enviado por el arduino y añadiendo al switch de la función de crear los mensajes un estado *default* que ponga el mensaje vacío si no se le ha introducido uno de los caracteres deseados.
 
-2. La conexión wifi, conectarse a eduroam me ha sido imposible y a la hora de conectar la móvil, he tenido problemas porque el móvil manda señal 5G y la placa solo se conecta a 2.4GHz.
+2. La conexión wifi, conectarse a eduroam me ha sido imposible y a la hora de conectar el móvil, he tenido problemas porque el móvil manda señal 5G y la placa solo se conecta a 2.4GHz.
 
 3. Por último remarcar que me costó un poco entender las conexiones entre placas y MQTT, ya que no entendía muy bien como se mandaban los mensajes o porque en el while del setup se tenían que enviar mensajes.
 
