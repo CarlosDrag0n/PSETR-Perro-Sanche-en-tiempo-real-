@@ -4,6 +4,8 @@ Práctica Realizada por Luis Laria Urbina y Carlos García Escolano
 
 ## 1. Organización del código
 
+haber trabajado nunca de esta forma y con no mucho tiempo por delante decidimos no arriesgarnos.
+
 Para organizar el proyecto, primero hemos hecho pruebas simples de los sensores, utilizando como guias las códigos proporcionados. 
 Una vez que comprobamos que todo funciona bien, empezamos a realizar el movimiento del siguelineas.
 
@@ -57,28 +59,40 @@ En este estado, el control PID se desactiva y entra en juego un **frenado propor
 
 ## 3. Comunicación
 
-Antes de nada, como comentamos anteriormente, hicimos una prueba para mandar mensajes simples a través de las placas, por MQTT y la conexión wifi.
+Antes de nada, como comentamos anteriormente, hicimos una prueba para mandar mensajes simples a través de las placas a través del puerto serie con el código de pruba que se nos proporcionó. Una vez que comprobamos que funcioanab la conexión comprobamos la conexión wifi con otro código de prueba que se nos proporcionó.
 
-Una vez entendido todo, lo que hice primero fue crear una función que crease el mensaje JSON dependiendo del caracter y el valor introducido, comprobé su funcionamiento con un código de prueba del arduino mandando caracteres y valores.
+Una vez entendido todo, lo que hice primero fue crear una función que devolviese el mensaje en un String con el formato JSON dependiendo del caracter y el valor de entrada, comprobé su funcionamiento con un código de prueba del arduino mandando caracteres y valores.
 
-Ya con los mensajes bien estructurados, añadí en el código de movimiento del arduino todo lo necesario para poder mandar mensajes, y añadí en cada state el mensaje correspondiente.
+Para filtrar los mensajes que envía el arduino al esp32, utilicé dos funciones, primero como el mensaje se acaba cuando se lee el caracter **"}"**, lo que hice fue cambiar este caracter por un caracter vacío **""** y luego eliminar el caracter vacío u otros elementos como **\r\n**, los cuales se meten en los mensajes enviados al hacer un *println*, en nuestro casi al principio los utilizamos, pero luego lo modificamos a simplemente *print*
+
+Ya con los mensajes bien estructurados, añadí en el código de movimiento del arduino todo lo necesario para poder mandar mensajes, es decir, meter en el setup el while que comprueba que haya conexióncon la esp32, y añadí en cada state el envío del mensaje correspondiente.
 
 También al final de la práctica cambié el ping, este en un primer momento calculaba el tiempo a través de un thread en arduino y cada 4s se mandaba a la esp32 la orden de enviar por wifi el ping, pero, hablando con compañeros en el laboratorio, decidí hacer el "cálculo" del tiempo esp32, ya que tenerlo en la arduino producía más errores tiempo por el envío del mensaje entre placas y todas las tareas.
-Para hacer esto simplemente copié el thread en el esp32, con un booleano y un contador que pongo a true cuando llega la orden de enviar el mensaje de START_LAP e inicio el contador y a false en END_LAP y a través del thread decido si mandarlo el ping o no.
+Para hacer esto simplemente copié el thread en el esp32, con un booleano que pongo a true y un contador que inicio cuando llega la orden de enviar el mensaje de START_LAP y pongo a false en END_LAP y a través del thread decido si mandarlo el ping o no.
 
 Además esta implementación hace que el contador del ping y de la vuelta sean distintos, acercando aún más los tiempos del ping a 4s.
 
+En cuanto a la comunicación ,en el setup iniciamos la configuración con el ssid y la contraseña y se intenta conectar, hasta que no se detecta que se ha conectado correctamente la conexión wifi, el programa no avanzará.
+
+### 3.1 Dificultades encontradas
+
 Algunas de las dificultades que he tenido han sido:
  
-1. depurando errores como envio de mensajes vacíos, que solucioné comprobando la longitud del mensaje enviado por el arduino y añadiendo al switch de la funcion de crear los mensajes un estado deault que ponga el mensaje vacío.
+1. Depurando errores como envio de mensajes vacíos, que solucioné comprobando la longitud del mensaje enviado por el arduino y añadiendo al switch de la funcion de crear los mensajes un estado deault que ponga el mensaje vacío si no se le ha introducido uno de los caracteres deseados.
 
-2. La conexión wifi, conectarse a eduroam ha sido imposible y a la hora de conectar la móvil, he tenido problemas porque el móvil manda señal 5G y la placa solo se conecta a 2.4GHz.
+2. La conexión wifi, conectarse a eduroam me ha sido imposible y a la hora de conectar la móvil, he tenido problemas porque el móvil manda señal 5G y la placa solo se conecta a 2.4GHz.
 
-3. Por último remarcar que me costó un poco entender las conexiones entre placas y MQTT
+3. Por último remarcar que me costó un poco entender las conexiones entre placas y MQTT, ya que no entendía muy bien como se mandaban los mensajes o porque en el while del setup se tenían que enviar mensajes.
 
 ## 4. Video
 
 Dejo un video demostración para ver el funcionamiento del robot en:
+ 
+1. Circuito de examen:
+
+[![Watch the video]](https://youtu.be/BNQ70QTSwKs)
+
+2. Circuito de laboratorio:
 
 [![Watch the video]](https://youtube.com/shorts/-B3TAr8ko5M)
 

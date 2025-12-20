@@ -145,7 +145,6 @@ void reconnectMQTT()
     Serial.println(mqtt.connectErrorString(ret));
 
     mqtt.disconnect();
-    delay(3000);
   }
 }
 
