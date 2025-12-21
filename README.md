@@ -74,7 +74,7 @@ Para hacer esto simplemente copié el *thread* en el ESP32, con un booleano que 
 
 Además, esta implementación hace que el contador del ping y de la vuelta sean distintos, acercando aún más los tiempos del ping a 4s.
 
-### 3.1 WiFi
+### 3.2 WiFi
 
 En cuanto a la comunicación WiFi, lo primero, cambiamos las credenciales de eduroam a las que se nos dijeron en clase y creamos un ssid y contraseña para el WiFi del móvil.
 
